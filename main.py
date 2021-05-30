@@ -13,6 +13,9 @@ class Maze:
 	def getBoots(self, position):
 		return self.maze[position[0]][position[1]]
 
+	def getMaze(self):
+		return self.maze
+
 	def isValid(self, position):
 		i, j = position
 		return 0 <= i and i < len(self.maze) and 0 <= j and j < len(self.maze[0])
@@ -57,11 +60,14 @@ class Boots:
 
 class Node:
 
-	def __init__(self, maze = None, currentBoots = None, backupBoots = None, wizardPosition = None):
+	def __init__(self, maze = None, currentBoots = None, backupBoots = None, wizardPosition = None, dad = None):
 		self.maze = copy.deepcopy(maze)
 		self.currentBoots = copy.deepcopy(currentBoots)
 		self.backupBoots = copy.deepcopy(backupBoots)
 		self.wizardPosition = wizardPosition
+		self.dad = dad
+		self.g = dad.getG() if dad is not None else 0
+		self.h = 0
 
 	def getMaze(self):
 		return self.maze
@@ -77,6 +83,21 @@ class Node:
 
 	def __str__(self):
 		return self.maze.__str__() + self.currentBoots.__str__() + self.backupBoots.__str__() + "\n" + str(self.wizardPosition)
+
+	def getDad(self):
+		return self.dad
+
+	def getG(self):
+		return self.g
+
+	def setG(self, g):
+		self.g = g
+
+	def getH(self):
+		return self.h
+
+	def setH(self, h):
+		self.h = h
 
 
 class AstarGraph:
@@ -101,7 +122,7 @@ class AstarGraph:
 		colors, colorsMaze, maze = self.parseInputFile(Filename)
 
 		colors = [line.strip().split() for line in colors.split("\n")]
-		colors = {line[0] : line[1] for line in colors if line != []}
+		colors = {line[0] : int(line[1]) for line in colors if line != []}
 
 		stringColorsMaze = colorsMaze
 		colorsMaze = []
@@ -117,7 +138,9 @@ class AstarGraph:
 
 		return colors, colorsMaze, maze
 
-	def __init__(self, Filename):
+	def __init__(self, Filename, heuristicType):
+
+		self.heuristicType = heuristicType
 
 		colors, colorsMaze, maze = self.parseInput(Filename)
 
@@ -127,7 +150,10 @@ class AstarGraph:
 			for j in range(len(maze[0])):
 				if maze[i][j] == "*":
 					self.startNode = Node(self.init_maze, Boots(colorsMaze[i][j], 1), None, (i, j))
+		self.genNextNodes(self.startNode, "exit")
 
+	def getColorCost(self, position):
+		return self.colors[self.init_maze.getColor(position)]
 
 	def getMaze(self):
 		return self.init_maze
@@ -135,7 +161,31 @@ class AstarGraph:
 	def validNode(self, node):
 		return node.getCurrentBoots().getColor() == self.getMaze().getColor(node.getWizardPosition()) and node.getCurrentBoots().getUses() <= 3
 
-	def genNextNodes(self, node):
+	def isGoal(self, node, goal):
+		if goal == "exit":
+			return self.getMaze().getBoots(node.getWizardPosition()) == "*"
+		elif goal == "stone":
+			return self.getMaze().getBoots(node.getWizardPosition()) == "@"
+		else:
+			print("error")
+
+	def calcH(self, node, goal):
+		if self.heuristicType == "banala":
+			if self.isGoal(node, goal):
+				return 1
+			else:
+				return 0
+		elif self.heuristicType == "admisibil1": # manhattan distance
+			pass
+		elif self.heuristicType == "admisibil2": # 
+			pass
+		elif self.heuristicType == "neadmisibil":
+			pass
+		else:
+			print("error")
+
+
+	def genNextNodes(self, node, goal):
 
 		successors = []
 		for dir in range(len(self.MOVEROW)):
@@ -150,9 +200,6 @@ class AstarGraph:
 				cost = self.colors[maze.getColor(nextPosition)]
 				nextMaze = copy.deepcopy(maze)
 
-				# nextMaze.setPosition(nextPosition, '*') # move wizard to the next position
-				# nextMaze.setPosition(currentPosition, self.init_maze.getBoots(currentPosition)) # restore the cell with the original value
-
 				# get all boots combinations and try to go to the next position
 
 				currentBoots = node.getCurrentBoots()
@@ -165,7 +212,7 @@ class AstarGraph:
 
 						backupBoots = copy.deepcopy(parcelBoots)
 
-						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 						if self.validNode(newNode):
 							successors.append(newNode)
@@ -173,7 +220,7 @@ class AstarGraph:
 						if currentBoots != backupBoots:
 							currentBoots, backupBoots = backupBoots, currentBoots # swap boots
 
-						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 						if(self.validNode(newNode)):
 							successors.append(newNode)
@@ -182,7 +229,7 @@ class AstarGraph:
 						if currentBoots != backupBoots:
 							currentBoots, backupBoots = backupBoots, currentBoots
 
-						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 						if self.validNode(newNode):
 							successors.append(newNode)
@@ -193,14 +240,14 @@ class AstarGraph:
 						if currentBoots.getColor() != parcelBoots.getColor():
 
 							# don't take boots on the parcel
-							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 							if self.validNode(newNode):
 								successors.append(newNode)
 
 							currentBoots, parcelBoots = parcelBoots, currentBoots # swap out currentBoots
 
-							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 							if self.validNode(newNode):
 								successors.append(newNode)
@@ -208,7 +255,7 @@ class AstarGraph:
 							if currentBoots != backupBoots:
 								currentBoots, backupBoots = backupBoots, currentBoots # classic swap
 
-							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 							if self.validNode(newNode):
 								successors.append(newNode)
@@ -222,7 +269,7 @@ class AstarGraph:
 								print("Parcel boots: ", parcelBoots)
 								currentBoots, parcelBoots = parcelBoots, currentBoots # swap out currentBoots
 
-								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 								if self.validNode(newNode):
 									successors.append(newNode)
@@ -230,7 +277,7 @@ class AstarGraph:
 								if currentBoots != backupBoots:
 									currentBoots, backupBoots = backupBoots, currentBoots # classic swap
 
-								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 								if self.validNode(newNode):
 									successors.append(newNode)
@@ -242,14 +289,14 @@ class AstarGraph:
 						if backupBoots.getColor() != parcelBoots.getColor():
 
 							# don't take boots on the parcel
-							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 							if self.validNode(newNode):
 								successors.append(newNode)
 
 							backupBoots, parcelBoots = parcelBoots, backupBoots # swap out backupBoots
 
-							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 							if self.validNode(newNode):
 								successors.append(newNode)
@@ -257,7 +304,7 @@ class AstarGraph:
 							if currentBoots != backupBoots:
 								currentBoots, backupBoots = backupBoots, currentBoots # classic swap
 
-							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+							newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 							if self.validNode(newNode):
 								successors.append(newNode)
@@ -270,7 +317,7 @@ class AstarGraph:
 							if backupBoots.getUses() > 0:
 								backupBoots, parcelBoots = parcelBoots, backupBoots # swap out backupBoots
 
-								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 								if self.validNode(newNode):
 									successors.append(newNode)
@@ -278,7 +325,7 @@ class AstarGraph:
 								if currentBoots != backupBoots:
 									currentBoots, backupBoots = backupBoots, currentBoots # classic swap
 
-								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 								if self.validNode(newNode):
 									successors.append(newNode)
@@ -289,7 +336,7 @@ class AstarGraph:
 
 				else: # if I don't have a pair of boots on current position
 
-					newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+					newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 					if self.validNode(newNode):
 						successors.append(newNode)
@@ -299,14 +346,29 @@ class AstarGraph:
 						if currentBoots != backupBoots:
 							currentBoots, backupBoots = backupBoots, currentBoots # swap boots
 
-						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition)
+						newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
 
 						if(self.validNode(newNode)):
 							successors.append(newNode)
 
+		# fix g and h
+
+		successors = list(set(successors))
+
+		for successor in successors:
+			newBoots = successor.getCurrentBoots()
+			add = self.getColorCost(successor.getWizardPosition())
+
+			if Boots(newBoots.getColor(), newBoots.getUses() - 1) != node.getCurrentBoots():
+				add += 1
+
+			successor.setG(successor.getG() + add)
+			successor.setH(successor.getH() + self.calcH(successor, goal))
+
+
 		# return successors
-		return list(set(successors))
+		return successors
 
 
 
-graph = AstarGraph("input.txt")
+graph = AstarGraph("input.txt", "banala")
