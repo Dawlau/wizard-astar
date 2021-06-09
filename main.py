@@ -209,6 +209,9 @@ class Graph:
 	def validNode(self, node):
 		return node.getMaze().isValid(node.getWizardPosition()) and node.getCurrentBoots().getColor() == self.getMaze().getColor(node.getWizardPosition()) and node.getCurrentBoots().getUses() <= 3
 
+	'''
+	Checks if the given node is a goal node
+	'''
 	def isGoal(self, node, goal):
 		if goal == "exit":
 			return node.getMaze().getBoots(node.getWizardPosition()) == "*"
@@ -217,6 +220,9 @@ class Graph:
 		else:
 			print("error")
 
+	'''
+	Calculate 4 types of heuristics
+	'''
 	def calcH(self, node, goal):
 		if self.heuristicType == "banala":
 			if self.isGoal(node, goal):
@@ -266,6 +272,7 @@ class Graph:
 		self.startNode.setH(self.calcH(self.startNode, "stone"))
 		OPEN = [self.startNode]
 		CLOSED = []
+		maxNodesCount = 1
 
 		foundSol = False
 		start = time.time()
@@ -274,6 +281,7 @@ class Graph:
 			if time.time() - start > timeout:
 				return "TIMEOUT"
 
+			maxNodesCount = max(maxNodesCount, len(OPEN) + len(CLOSED))
 			node = OPEN.pop(0)
 			CLOSED.append(node)
 
@@ -287,20 +295,27 @@ class Graph:
 					stack = []
 					ans = ""
 					cost = node.getG()
+					pathLength = 0
+
 					while node is not None:
 						stack.append(node)
 						node = node.getDad()
+						pathLength += 1
+
+
 					stack.reverse()
 					for n in stack:
 						ans += str(n)
 
-					ans += "Cost: " + str(cost)
+					ans += "Cost: " + str(cost) + "\n"
+					ans += "Path length: " + str(pathLength) + "\n"
+					ans += "Max number of nodes in memory: " + str(maxNodesCount) + "\n"
 					return ans
 				else:
 					node.setGoal("exit")
 					OPEN.append(node)
 
-			for nextNode in self.genNextNodes(node, node.getGoal()):
+			for nextNode in self.genNextNodes(node, node.getGoal()): # for every successor
 				nextNode.setGoal(node.getGoal())
 				if nextNode in OPEN:
 					i = OPEN.index(nextNode)
@@ -320,13 +335,16 @@ class Graph:
 			return "No solution"
 
 
-
+	'''
+	Run UCS on specified timeout
+	'''
 	def runUCS(self, timeout):
 
 		import heapq as hq
 		import time
 
 		heap = [self.startNode]
+		maxNodesCount = 1
 
 		foundSol = False
 		start = time.time()
@@ -336,25 +354,29 @@ class Graph:
 				return "TIMEOUT"
 
 			heap.sort(key = lambda x : x.getG() if x.getGoal() == "exit" else 100 * x.getG())
-
+			maxNodesCount = max(maxNodesCount, len(heap))
 			node = heap[0]
 			heap.pop(0)
 
 			if self.isGoal(node, node.getGoal()):
 
-				if node.getGoal() == "exit":
+				if node.getGoal() == "exit": # print path and required parameters
 					foundSol = True
 					stack = []
 					cost = node.getG()
 					ans = ""
-
+					pathLength = 0
 					while node is not None:
 						stack.append(node)
 						node = node.getDad()
+						pathLength += 1
+
 					stack.reverse()
 					for n in stack:
 						ans += str(n)
-					ans += "Cost: " + str(cost)
+					ans += "Cost: " + str(cost) + "\n"
+					ans += "Path length: " + str(pathLength) + "\n"
+					ans += "Max number of nodes in memory: " + str(maxNodesCount) + "\n"
 					return ans
 				else:
 					node.setGoal("exit")
@@ -414,7 +436,9 @@ class Graph:
 	# 		limit = ans
 
 
-
+	'''
+	Generates the graph nodes relative to the goal of the algorithm
+	'''
 	def genNextNodes(self, node, goal):
 
 		successors = []
