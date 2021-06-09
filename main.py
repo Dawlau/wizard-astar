@@ -1,12 +1,16 @@
 import copy
 
-
+'''
+Models a maze.
+Contains cell colors and maze structure.
+'''
 class Maze:
 
 	def __init__(self, colorsMaze, maze):
 		self.colorsMaze = copy.deepcopy(colorsMaze)
 		self.maze = copy.deepcopy(maze)
 
+	# getters
 	def getColor(self, position):
 		return self.colorsMaze[position[0]][position[1]]
 
@@ -16,6 +20,7 @@ class Maze:
 	def getMaze(self):
 		return self.maze
 
+	# check if position is in the maze
 	def isValid(self, position):
 		i, j = position
 		return 0 <= i and i < len(self.maze) and 0 <= j and j < len(self.maze[0])
@@ -24,6 +29,7 @@ class Maze:
 		i, j = position
 		self.maze[i][j] = color
 
+	# for debugging
 	def __str__(self):
 		res = ""
 
@@ -32,13 +38,25 @@ class Maze:
 
 		return res
 
+	def __eq__(self, other):
 
+		for i in range(len(self.maze)):
+			for j in range(len(self.maze[0])):
+				if self.maze[i][j] != other.maze[i][j]:
+					return False
+		return True
+
+'''
+Models the wizard's boots.
+Contains the color and uses.
+'''
 class Boots:
 
 	def __init__(self, color, uses):
 		self.color = color
 		self.uses = uses
 
+	# getters and setters
 	def getColor(self):
 		return self.color
 
@@ -54,10 +72,14 @@ class Boots:
 	def __str__(self):
 		return str(self.color) + " " + str(self.uses) + "\n"
 
+	# == operator
 	def __eq__(self, other):
 		return self.color == other.color and self.uses == other.uses
 
+'''
+Contains all the data needed for the algorithms nodes.
 
+'''
 class Node:
 
 	def __init__(self, maze = None, currentBoots = None, backupBoots = None, wizardPosition = None, dad = None):
@@ -65,10 +87,12 @@ class Node:
 		self.currentBoots = copy.deepcopy(currentBoots)
 		self.backupBoots = copy.deepcopy(backupBoots)
 		self.wizardPosition = wizardPosition
-		self.dad = dad
+		self.dad = copy.deepcopy(dad)
 		self.g = dad.getG() if dad is not None else 0
 		self.h = 0
+		self.goal = "stone"
 
+	# getters and setters
 	def getMaze(self):
 		return self.maze
 
@@ -97,14 +121,37 @@ class Node:
 		return self.h
 
 	def setH(self, h):
-		self.h = h
+		self.h = round(h, 6)
 
+	def getGoal(self):
+		return self.goal
 
-class AstarGraph:
+	def setGoal(self, goal):
+		self.goal = goal
+
+	def __lt__(self, other):
+		return self.g < other.g
+
+	def __eq__(self, other):
+		if self.backupBoots is None and other.backupBoots is None:
+			cond = True
+		else:
+			if self.backupBoots is None or other.backupBoots is None:
+				cond = False
+			else:
+				cond = self.backupBoots == other.backupBoots
+		return self.maze == other.maze and self.currentBoots == other.currentBoots and cond and self.wizardPosition == other.wizardPosition
+
+'''
+Models the graph for A* algorithm
+'''
+
+class Graph:
 
 	MOVEROW = [-1, 0, 1, 0]
 	MOVECOL = [0, 1, 0, -1]
 
+	# get input from file
 	def parseInputFile(self, Filename):
 		with open(Filename, "r") as r:
 			_input = r.read().strip()
@@ -138,6 +185,7 @@ class AstarGraph:
 
 		return colors, colorsMaze, maze
 
+	# initialize the graph
 	def __init__(self, Filename, heuristicType):
 
 		self.heuristicType = heuristicType
@@ -150,7 +198,7 @@ class AstarGraph:
 			for j in range(len(maze[0])):
 				if maze[i][j] == "*":
 					self.startNode = Node(self.init_maze, Boots(colorsMaze[i][j], 1), None, (i, j))
-		self.genNextNodes(self.startNode, "exit")
+
 
 	def getColorCost(self, position):
 		return self.colors[self.init_maze.getColor(position)]
@@ -159,30 +207,212 @@ class AstarGraph:
 		return self.init_maze
 
 	def validNode(self, node):
-		return node.getCurrentBoots().getColor() == self.getMaze().getColor(node.getWizardPosition()) and node.getCurrentBoots().getUses() <= 3
+		return node.getMaze().isValid(node.getWizardPosition()) and node.getCurrentBoots().getColor() == self.getMaze().getColor(node.getWizardPosition()) and node.getCurrentBoots().getUses() <= 3
 
 	def isGoal(self, node, goal):
 		if goal == "exit":
-			return self.getMaze().getBoots(node.getWizardPosition()) == "*"
+			return node.getMaze().getBoots(node.getWizardPosition()) == "*"
 		elif goal == "stone":
-			return self.getMaze().getBoots(node.getWizardPosition()) == "@"
+			return node.getMaze().getBoots(node.getWizardPosition()) == "@"
 		else:
 			print("error")
 
 	def calcH(self, node, goal):
 		if self.heuristicType == "banala":
 			if self.isGoal(node, goal):
-				return 1
-			else:
 				return 0
+			else:
+				return 1
 		elif self.heuristicType == "admisibil1": # manhattan distance
-			pass
-		elif self.heuristicType == "admisibil2": # 
-			pass
+			wi, wj = node.getWizardPosition()
+
+
+			maze = node.getMaze().getMaze()
+			for i in range(len(maze)):
+				for j in range(len(maze[0])):
+					if self.isGoal(Node(node.getMaze(), None, None, (i, j)), goal):
+						return abs(i - wi) + abs(j - wj)
+
+		elif self.heuristicType == "admisibil2": # euclidean distance
+			wi, wj = node.getWizardPosition()
+
+			import math
+
+			maze = node.getMaze().getMaze()
+			for i in range(len(maze)):
+				for j in range(len(maze[0])):
+					if self.isGoal(Node(node.getMaze(), None, None, (i, j)), goal):
+						return math.sqrt((i - wi) * (i - wi) + (j - wj) * (j - wj))
 		elif self.heuristicType == "neadmisibil":
-			pass
+			wi, wj = node.getWizardPosition()
+
+			import math
+
+			maze = node.getMaze().getMaze()
+			for i in range(len(maze)):
+				for j in range(len(maze[0])):
+					if self.isGoal(Node(node.getMaze(), None, None, (i, j)), goal):
+						return 10 * (abs(i - wi) + abs(j - wj))
 		else:
 			print("error")
+
+	'''
+	Run astar and sort every iteration
+	'''
+	def runAstar(self, timeout):
+
+		import time
+
+		self.startNode.setH(self.calcH(self.startNode, "stone"))
+		OPEN = [self.startNode]
+		CLOSED = []
+
+		foundSol = False
+		start = time.time()
+		while len(OPEN):
+
+			if time.time() - start > timeout:
+				return "TIMEOUT"
+
+			node = OPEN.pop(0)
+			CLOSED.append(node)
+
+			OPEN.sort(key = lambda x : x.getG(), reverse=True)
+			OPEN.sort(key = lambda x : x.getH())
+
+			if self.isGoal(node, node.getGoal()):
+
+				if node.getGoal() == "exit":
+					foundSol = True
+					stack = []
+					ans = ""
+					cost = node.getG()
+					while node is not None:
+						stack.append(node)
+						node = node.getDad()
+					stack.reverse()
+					for n in stack:
+						ans += str(n)
+
+					ans += "Cost: " + str(cost)
+					return ans
+				else:
+					node.setGoal("exit")
+					OPEN.append(node)
+
+			for nextNode in self.genNextNodes(node, node.getGoal()):
+				nextNode.setGoal(node.getGoal())
+				if nextNode in OPEN:
+					i = OPEN.index(nextNode)
+					if nextNode.getH() < OPEN[i].getH():
+						OPEN[i] = copy.deepcopy(nextNode)
+					elif nextNode.getH() == OPEN[i].getH():
+						if nextNode.getG() > OPEN[i].getG():
+							OPEN[i] = copy.deepcopy(nextNode)
+				else:
+					if nextNode in CLOSED:
+						i = CLOSED.index(nextNode)
+						if nextNode.getH() < CLOSED[i].getH() or (nextNode.getH() == CLOSED[i].getH() and nextNode.getG() > CLOSED[i].getG()): # found better path
+							CLOSED.pop(i)
+					OPEN.append(nextNode)
+
+		if not foundSol:
+			return "No solution"
+
+
+
+	def runUCS(self, timeout):
+
+		import heapq as hq
+		import time
+
+		heap = [self.startNode]
+
+		foundSol = False
+		start = time.time()
+		while len(heap):
+
+			if time.time() - start > timeout:
+				return "TIMEOUT"
+
+			heap.sort(key = lambda x : x.getG() if x.getGoal() == "exit" else 100 * x.getG())
+
+			node = heap[0]
+			heap.pop(0)
+
+			if self.isGoal(node, node.getGoal()):
+
+				if node.getGoal() == "exit":
+					foundSol = True
+					stack = []
+					cost = node.getG()
+					ans = ""
+
+					while node is not None:
+						stack.append(node)
+						node = node.getDad()
+					stack.reverse()
+					for n in stack:
+						ans += str(n)
+					ans += "Cost: " + str(cost)
+					return ans
+				else:
+					node.setGoal("exit")
+					heap.append(node)
+
+
+			for nextNode in self.genNextNodes(node, node.getGoal()):
+				heap.append(nextNode)
+				nextNode.setGoal(node.getGoal())
+
+		if not foundSol:
+			return "No solution"
+
+	# '''
+	# Builds paths for IDA*
+	# '''
+	# def buildPaths(self, node, limit):
+
+	# 	if node.getH() > limit:
+	# 		return node.getH()
+
+	# 	if self.isGoal(node, node.getGoal()) and node.getH() == limit:
+	# 		n = copy.deepcopy(node)
+	# 		stack = []
+
+	# 		while n is not None:
+	# 			stack.append(n)
+	# 			n = n.getDad()
+
+	# 		stack.reverse()
+
+	# 		for n in stack:
+	# 			print(n)
+	# 		return "done"
+
+	# 	ans = float('inf')
+	# 	for nextNode in self.genNextNodes(node, node.getGoal()):
+	# 		dfAns = self.buildPaths(nextNode, limit)
+	# 		if dfAns == "done":
+	# 			return "done"
+	# 		if dfAns < ans:
+	# 			ans = dfAns
+	# 	return ans
+
+	# def runIDAstar(self, timeout):
+
+	# 	limit = self.startNode.getH()
+
+	# 	while True:
+
+	# 		ans = self.buildPaths(self.startNode, limit)
+	# 		if ans == "done":
+	# 			break
+	# 		if ans == float('inf'):
+	# 			print("No solution")
+	# 			break
+	# 		limit = ans
+
 
 
 	def genNextNodes(self, node, goal):
@@ -266,7 +496,7 @@ class AstarGraph:
 
 						elif currentBoots.getColor() == parcelBoots.getColor():
 							if currentBoots.getUses() > 0:
-								print("Parcel boots: ", parcelBoots)
+								# print("Parcel boots: ", parcelBoots)
 								currentBoots, parcelBoots = parcelBoots, currentBoots # swap out currentBoots
 
 								newNode = Node(nextMaze, Boots(currentBoots.getColor(), currentBoots.getUses() + 1), backupBoots, nextPosition, node)
@@ -353,7 +583,7 @@ class AstarGraph:
 
 		# fix g and h
 
-		successors = list(set(successors))
+		# successors = list(set(successors))
 
 		for successor in successors:
 			newBoots = successor.getCurrentBoots()
@@ -370,5 +600,62 @@ class AstarGraph:
 		return successors
 
 
+class App:
 
-graph = AstarGraph("input.txt", "banala")
+	def __init__(self):
+
+		import sys
+
+		self.inputFolder = sys.argv[1]
+		self.outputFolder = sys.argv[2]
+		self.solCount = int(sys.argv[3])
+		self.timeout = float(sys.argv[4])
+
+	def run(self):
+
+		import os
+
+		files = [f for f in os.listdir(self.inputFolder) if os.path.isfile(os.path.join(self.inputFolder, f))]
+
+		for file in files:
+			inputFile = os.path.join(self.inputFolder, file)
+			graphBanal = Graph(inputFile, "banala")
+			graphAdmisibil1 = Graph(inputFile, "admisibil1")
+			graphAdmisibil2 = Graph(inputFile, "admisibil2")
+			graphNeadmisibil = Graph(inputFile, "neadmisibil")
+
+			outputFile = os.path.join("output", "output_banala_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphBanal.runAstar(self.timeout))
+
+			outputFile = os.path.join("output", "output_admisibil1_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphAdmisibil1.runAstar(self.timeout))
+
+			outputFile = os.path.join("output", "output_admisibil2_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphAdmisibil2.runAstar(self.timeout))
+
+			outputFile = os.path.join("output", "output_neadmisibil_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphNeadmisibil.runAstar(self.timeout))
+
+			outputFile = os.path.join("output", "output_ucs_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphBanal.runUCS(self.timeout))
+
+			outputFile = os.path.join("output", "output_ucs_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphAdmisibil1.runUCS(self.timeout))
+
+			outputFile = os.path.join("output", "output_ucs_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphAdmisibil2.runUCS(self.timeout))
+
+			outputFile = os.path.join("output", "output_ucs_" + file)
+			with open(outputFile, "w") as w:
+				w.write(graphNeadmisibil.runUCS(self.timeout))
+
+
+app = App()
+app.run()
