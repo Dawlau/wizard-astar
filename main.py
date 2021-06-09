@@ -666,18 +666,6 @@ class App:
 
 			outputFile = os.path.join("output", "output_ucs_" + file)
 			with open(outputFile, "w") as w:
-				w.write(graphBanal.runUCS(self.timeout))
-
-			outputFile = os.path.join("output", "output_ucs_" + file)
-			with open(outputFile, "w") as w:
-				w.write(graphAdmisibil1.runUCS(self.timeout))
-
-			outputFile = os.path.join("output", "output_ucs_" + file)
-			with open(outputFile, "w") as w:
-				w.write(graphAdmisibil2.runUCS(self.timeout))
-
-			outputFile = os.path.join("output", "output_ucs_" + file)
-			with open(outputFile, "w") as w:
 				w.write(graphNeadmisibil.runUCS(self.timeout))
 
 
